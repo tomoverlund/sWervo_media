@@ -418,36 +418,6 @@ impl GStreamerPlayer {
         let player = gst_player::Player::default();
         let pipeline = player.pipeline();
 
-        // FIXME(#282): The progressive downloading breaks playback on Windows and Android.
-        if !cfg!(any(target_os = "windows", target_os = "android")) {
-            // Set player to perform progressive downloading. This will make the
-            // player store the downloaded media in a local temporary file for
-            // faster playback of already-downloaded chunks.
-            let flags = pipeline.property_value("flags");
-            let flags_class = match glib::FlagsClass::with_type(flags.type_()) {
-                Some(flags) => flags,
-                None => {
-                    return Err(PlayerError::Backend(
-                        "FlagsClass creation failed".to_owned(),
-                    ));
-                }
-            };
-            let flags_class = match flags_class.builder_with_value(flags) {
-                Some(class) => class,
-                None => {
-                    return Err(PlayerError::Backend(
-                        "FlagsClass creation failed".to_owned(),
-                    ));
-                }
-            };
-            let Some(flags) = flags_class.set_by_nick("download").build() else {
-                return Err(PlayerError::Backend(
-                    "FlagsClass creation failed".to_owned(),
-                ));
-            };
-            pipeline.set_property_from_value("flags", &flags);
-        }
-
         // Set max size for the player buffer.
         pipeline.set_property("buffer-size", MAX_BUFFER_SIZE);
 
@@ -587,9 +557,10 @@ impl GStreamerPlayer {
             if let Ok(metadata) = metadata_from_media_info(info) {
                 if inner.last_metadata.as_ref() != Some(&metadata) {
                     inner.last_metadata = Some(metadata.clone());
-                    if metadata.is_seekable {
-                        inner.player.set_rate(inner.rate);
-                    }
+                    // TODO: Should be doing this? Causes unnecessary seek at beginning of playback.
+                    // if metadata.is_seekable {
+                    //     inner.player.set_rate(inner.rate);
+                    // }
                     gst::info!(inner.cat, obj = &inner.player, "Metadata updated: {:?}", metadata);
                     notify!(observer, PlayerEvent::MetadataUpdated(metadata));
                 }
